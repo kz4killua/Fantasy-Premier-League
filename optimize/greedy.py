@@ -11,12 +11,12 @@ def run_greedy_optimization(
     elements: pd.DataFrame, selling_prices: pd.Series, gameweek_predictions: pd.Series,
     free_transfers: int, transfers_made: int
 ):
-    """Optimizes a squad by iteratively making the best transfers till convergence."""
+    """Optimize the initial squad using a greedy approach."""
 
     current_squad = initial_squad.copy()
     current_budget = initial_budget
 
-    # When wildcarding or on GW 1, replace each player with their cheapest alternative.
+    # When wildcarding or on GW 1, first replace each player with their cheapest alternative.
     if free_transfers == float('inf'):
         current_squad, current_budget, selling_prices = free_budget(
             current_squad, current_budget, elements, selling_prices, now_costs
@@ -44,8 +44,8 @@ def free_budget(initial_squad: set, initial_budget: int, elements: pd.DataFrame,
         valid_replacements = get_valid_transfers(
             current_squad, player, elements, selling_prices, current_budget
         )
-        valid_replacements_costs = now_costs.loc[list(valid_replacements)]
-        cheapest_replacement = valid_replacements_costs.idxmin()
+        replacement_costs = now_costs.loc[list(valid_replacements)]
+        cheapest_replacement = replacement_costs.idxmin()
 
         # Update the squad (and budget) accordingly.
         new_squad = current_squad - {player} | {cheapest_replacement}
