@@ -87,20 +87,24 @@ class TestOptimize(unittest.TestCase):
             )
             for gameweek in gameweeks
         }
+        free_transfers = 1
+        transfers_made = 1
 
         score = evaluate_squad(
             self.squad, self.budget, positions, 
             gameweeks, gameweek_predictions,
+            free_transfers, transfers_made,
             squad_evaluation_round_factor=0.5,
             captain_multiplier=2,
             starting_xi_multiplier=1,
             reserve_gkp_multiplier=0.1,
             reserve_out_multiplier=np.array([0.3, 0.2, 0.1]),
-            budget_importance=0
+            budget_importance=0,
+            transfer_aversion_factor=1.0
         )
         self.assertAlmostEqual(
             score, 76.84285714285714, 5
-        )     
+        )
 
 
     def test_get_valid_transfers(self):
@@ -124,11 +128,21 @@ class TestOptimize(unittest.TestCase):
     def test_make_best_transfer(self):
 
         test_cases = [
-            {"gameweeks": [1], "budget": 0, "expected": {1, 2, 3, 4, 5, 6, 18, 8, 9, 10, 11, 12, 13, 14, 15}},
+            {
+                "gameweeks": [1], 
+                "budget": 0, 
+                "free_transfers": 1,
+                "transfers_made": 0,
+                "expected": {1, 2, 3, 4, 5, 6, 18, 8, 9, 10, 11, 12, 13, 14, 15}
+            }
         ]
 
         for test_case in test_cases:
-            squad = make_best_transfer(self.squad, test_case['gameweeks'], test_case['budget'], self.elements, self.selling_prices, self.now_costs, self.gameweek_predictions)
+            squad = make_best_transfer(
+                self.squad, test_case['budget'], test_case['gameweeks'], self.elements, 
+                self.selling_prices, self.now_costs, self.gameweek_predictions,
+                test_case['free_transfers'], test_case['transfers_made']
+            )
             self.assertSetEqual(squad, test_case['expected'])
 
 

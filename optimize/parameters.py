@@ -9,6 +9,7 @@ parameters = {
     'reserve_out_multiplier': 0.3749016858132089 ** np.arange(1, 4),
     'future_gameweeks_evaluated': 4,
     'budget_importance': 3.490974459751069e-07,
+    'transfer_aversion_factor': 1.0,
 }
 
 

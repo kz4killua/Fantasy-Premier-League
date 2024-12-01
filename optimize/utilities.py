@@ -7,6 +7,9 @@ from optimize.parameters import get_parameter
 from datautil.utilities import GKP, DEF, MID, FWD
 
 
+TRANSFER_COST = 4
+
+
 def sum_player_points(players: list, total_points: dict, weights: float | Iterable[float] = 1) -> float:
     """Add up (and optionally, weight) the total points for a list of players."""
 
@@ -120,7 +123,21 @@ def calculate_points(roles: dict, total_points: dict, captain_multiplier: float,
     return points
 
 
-def evaluate_squad(squad: set, budget: int, positions: dict, gameweeks: list[int], gameweek_predictions: dict[int, dict[int, float]], squad_evaluation_round_factor: Optional[float] = None, captain_multiplier: Optional[float] = None, starting_xi_multiplier: Optional[float] = None, reserve_gkp_multiplier: Optional[float] = None, reserve_out_multiplier: Optional[np.ndarray] = None, budget_importance: Optional[float] = None) -> float:
+def evaluate_squad(
+    squad: set, budget: int,
+    positions: dict, gameweeks: list[int], 
+    gameweek_predictions: dict[int, dict[int, float]], 
+    free_transfers: int, transfers_made: int,
+    
+    # Optimization parameters
+    squad_evaluation_round_factor: Optional[float] = None, 
+    captain_multiplier: Optional[float] = None, 
+    starting_xi_multiplier: Optional[float] = None, 
+    reserve_gkp_multiplier: Optional[float] = None, 
+    reserve_out_multiplier: Optional[np.ndarray] = None, 
+    budget_importance: Optional[float] = None,
+    transfer_aversion_factor: Optional[float] = None
+) -> float:
     """
     Returns a score representing the 'goodness' of a squad for upcoming 'gameweeks'.
     """
@@ -137,11 +154,15 @@ def evaluate_squad(squad: set, budget: int, positions: dict, gameweeks: list[int
         reserve_out_multiplier = get_parameter('reserve_out_multiplier')
     if budget_importance is None:
         budget_importance = get_parameter('budget_importance')
+    if transfer_aversion_factor is None:
+        transfer_aversion_factor = get_parameter('transfer_aversion_factor')
 
     scores = []
 
     if not isinstance(gameweek_predictions, dict):
-        raise ValueError("gameweek_predictions should be a dictionary.")
+        raise ValueError("Input 'gameweek_predictions' should be a dict object.")
+    if not isinstance(positions, dict):
+        raise ValueError("Input 'positions' should be a dict object.")
 
     # Sum up the predicted points haul for each gameweek.
     for gameweek in gameweeks:
@@ -160,15 +181,29 @@ def evaluate_squad(squad: set, budget: int, positions: dict, gameweeks: list[int
             )
         )
 
-    # Apply weights to the score for each gameweek. 
+    # Sum up the weighted scores for each gameweek
     weights = (squad_evaluation_round_factor ** np.arange(len(scores)))
     weights /= weights.sum()
     evaluation = (scores * weights).sum()
+
+    # Add the cost of making transfers
+    transfer_cost = calculate_transfer_cost(free_transfers, transfers_made)
+    evaluation -= transfer_cost * transfer_aversion_factor
 
     # Apply budget importance to the evaluation
     evaluation += budget_importance * budget
 
     return evaluation
+
+
+def calculate_transfer_cost(free_transfers: int, transfers_made: int) -> int:
+    """Calculate the cost of making transfers from the initial to the current squad."""
+    return max(transfers_made - free_transfers, 0) * TRANSFER_COST
+
+
+def count_transfers_made(old_squad: set, new_squad: set) -> int:
+    """Count the number of transfers made from the old to the new squad."""
+    return len(new_squad - old_squad)
 
 
 def get_valid_transfers(squad: set, player_out: int, elements: pd.DataFrame, selling_prices: pd.Series, budget: int) -> set:
@@ -198,10 +233,14 @@ def get_valid_transfers(squad: set, player_out: int, elements: pd.DataFrame, sel
     return set(valid_transfers['id']) | {player_out}
 
 
-def make_best_transfer(squad: set, gameweeks: list, budget: int, elements: pd.DataFrame, selling_prices: pd.Series, now_costs: pd.Series, gameweek_predictions: pd.DataFrame) -> set:
-    """
-    Find the best single transfer that can be made.
-    """
+def make_best_transfer(
+    squad: set, budget: int, 
+    gameweeks: list, elements: pd.DataFrame, 
+    selling_prices: pd.Series, now_costs: pd.Series, 
+    gameweek_predictions: pd.DataFrame,
+    free_transfers: int, transfers_made: int
+) -> set:
+    """Find the best single transfer that can be made."""
 
     assert elements.index.name == "id"
     positions = elements['element_type']
@@ -216,7 +255,10 @@ def make_best_transfer(squad: set, gameweeks: list, budget: int, elements: pd.Da
     }
     
     best_squad = squad
-    best_squad_evaluation = evaluate_squad(squad, budget, positions, gameweeks, gameweek_predictions)
+    best_squad_evaluation = evaluate_squad(
+        squad, budget, positions, gameweeks, gameweek_predictions, 
+        free_transfers, transfers_made
+    )
 
     # Try out all valid transfers
     for player_out in squad:
@@ -224,8 +266,11 @@ def make_best_transfer(squad: set, gameweeks: list, budget: int, elements: pd.Da
             
             # Evaluate the new squad
             new_squad = squad - {player_out} | {player_in}
-            new_squad_budget = calculate_budget(squad, new_squad, budget, selling_prices, now_costs)
-            new_squad_evaluation = evaluate_squad(new_squad, new_squad_budget, positions, gameweeks, gameweek_predictions)
+            new_budget = calculate_budget(squad, new_squad, budget, selling_prices, now_costs)
+            new_squad_evaluation = evaluate_squad(
+                new_squad, new_budget, positions, gameweeks, gameweek_predictions, 
+                free_transfers, transfers_made + count_transfers_made(squad, new_squad)
+            )
 
             # Keep only the best squad
             if new_squad_evaluation > best_squad_evaluation:

@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 from optimize import optimize_squad
-from optimize.utilities import suggest_squad_roles, calculate_points, calculate_budget, sum_player_points, update_purchase_prices, update_selling_prices
+from optimize.utilities import suggest_squad_roles, calculate_points, calculate_budget, sum_player_points, update_purchase_prices, update_selling_prices, calculate_transfer_cost, count_transfers_made
 from predictions import make_predictions, group_predictions_by_gameweek, weight_gameweek_predictions_by_availability
 from simulation.utilities import make_automatic_substitutions, get_selling_prices, get_player_name
 from simulation.loaders import load_simulation_purchase_prices, load_simulation_bootstrap_elements, load_simulation_features, load_simulation_true_results
@@ -25,7 +25,8 @@ def print_simulated_gameweek_report(
         gameweek_points: int, 
         total_points: int,
         positions: pd.Series, 
-        elements: pd.DataFrame
+        elements: pd.DataFrame,
+        transfer_cost: int
     ):
     """Print a detailed summary of activity in a simulated gameweek."""
 
@@ -79,7 +80,7 @@ def print_simulated_gameweek_report(
         print()
 
     # Print transfer information
-    print("\nTransfers")
+    print(f"\nTransfers ({transfer_cost} points)")
     for player in (final_squad - initial_squad):
         print(f"-> {get_player_name(player, elements)} ({get_currency_representation(final_squad_purchase_prices.loc[player])})")
     for player in (initial_squad - final_squad):
@@ -144,12 +145,20 @@ def run_simulation(season: str, wildcard_gameweeks=[14, 25], log=False, use_cach
         gameweek_predictions = group_predictions_by_gameweek(predictions)
         gameweek_predictions = weight_gameweek_predictions_by_availability(gameweek_predictions, gameweek_elements, next_gameweek)
 
+        if (next_gameweek == 1) or (next_gameweek in wildcard_gameweeks):
+            free_transfers = float('inf')
+            transfers_made = 0
+        else:
+            free_transfers = 1
+            transfers_made = 0
+
         # Optimize the squad for the next gameweek
         best_squad = optimize_squad(
             season, current_squad, current_budget, 
             next_gameweek, wildcard_gameweeks,
             now_costs, selling_prices,
-            gameweek_elements, gameweek_predictions
+            gameweek_elements, gameweek_predictions,
+            free_transfers, transfers_made
         )
 
         # Update budgets and prices
@@ -182,6 +191,11 @@ def run_simulation(season: str, wildcard_gameweeks=[14, 25], log=False, use_cach
         )
         total_points += gameweek_points
 
+        # Apply the cost of transfers
+        transfers_made += count_transfers_made(best_squad, current_squad)
+        transfer_cost = calculate_transfer_cost(free_transfers, transfers_made)
+        total_points -= transfer_cost
+
         # Print the gameweek report
         if log:
             print_simulated_gameweek_report(
@@ -192,7 +206,8 @@ def run_simulation(season: str, wildcard_gameweeks=[14, 25], log=False, use_cach
                 final_squad_purchase_prices=updated_purchase_prices,
                 gameweek=next_gameweek, player_gameweek_points=true_total_points.loc[:, next_gameweek], 
                 gameweek_points=gameweek_points, total_points=total_points,
-                positions=positions, elements=gameweek_elements
+                positions=positions, elements=gameweek_elements,
+                transfer_cost=transfer_cost
             )
 
         # Carry out updates

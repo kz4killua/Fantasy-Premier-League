@@ -24,12 +24,14 @@ def objective(trial: optuna.Trial):
     reserve_out_multiplier = reserve_out_multiplier ** np.arange(1, 4)
     future_gameweeks_evaluated = trial.suggest_int('future_gameweeks_evaluated', 1, 10)
     budget_importance = trial.suggest_float('budget_importance', 1e-7, 1e-3, log=True)
+    transfer_aversion_factor = trial.suggest_float('transfer_aversion_factor', 0.0, 2.0)
 
     set_parameter('squad_evaluation_round_factor', squad_evaluation_round_factor)
     set_parameter('reserve_gkp_multiplier', reserve_gkp_multiplier)
     set_parameter('reserve_out_multiplier', reserve_out_multiplier)
     set_parameter('future_gameweeks_evaluated', future_gameweeks_evaluated)
     set_parameter('budget_importance', budget_importance)
+    set_parameter('transfer_aversion_factor', transfer_aversion_factor)
 
     wildcard_1 = trial.suggest_int('wildcard_1', 2, 19)
     wildcard_2 = trial.suggest_int('wildcard_2', 20, 38)
