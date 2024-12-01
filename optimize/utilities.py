@@ -197,12 +197,12 @@ def evaluate_squad(
 
 
 def calculate_transfer_cost(free_transfers: int, transfers_made: int) -> int:
-    """Calculate the cost of making transfers from the initial to the current squad."""
+    """Calculate the points deduction for making a number of transfers."""
     return max(transfers_made - free_transfers, 0) * TRANSFER_COST
 
 
 def count_transfers_made(old_squad: set, new_squad: set) -> int:
-    """Count the number of transfers made from the old to the new squad."""
+    """Count the number of transfers made to move from the old to the new squad."""
     return len(new_squad - old_squad)
 
 

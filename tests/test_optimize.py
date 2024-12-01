@@ -3,7 +3,8 @@ import unittest
 import pandas as pd
 import numpy as np
 
-from optimize.utilities import suggest_squad_roles, calculate_points, get_valid_transfers, evaluate_squad, make_best_transfer, calculate_budget, get_future_gameweeks
+from optimize.utilities import suggest_squad_roles, calculate_points, get_valid_transfers, evaluate_squad, make_best_transfer, calculate_budget, get_future_gameweeks, sum_player_points, calculate_transfer_cost, count_transfers_made
+from optimize.parameters import set_parameter, get_parameter
 from predictions import group_predictions_by_gameweek
 
 
@@ -21,6 +22,52 @@ class TestOptimize(unittest.TestCase):
         self.selling_prices = pd.read_csv('tests/data/test_selling_prices.csv', index_col=['id'])['selling_price']
         self.now_costs = self.elements['now_cost']
         self.positions = self.elements['element_type']
+
+        # Set optimization parameters
+        set_parameter('squad_evaluation_round_factor', 0.5)
+        set_parameter('captain_multiplier', 2)
+        set_parameter('starting_xi_multiplier', 1)
+        set_parameter('reserve_gkp_multiplier', 0.1)
+        set_parameter('reserve_out_multiplier', np.array([0.3, 0.2, 0.1]))
+        set_parameter('future_gameweeks_evaluated', 5)
+        set_parameter('budget_importance', 0)
+        set_parameter('transfer_aversion_factor', 1.0)
+
+
+    def test_sum_player_points(self):
+
+        total_points = {
+            1: 1, 2: 2, 3: 3, 4: 4, 5: 5
+        }
+
+        cases = [
+            {
+                'players': [1, 2, 3, 4, 5],
+                'weights': 1,
+                'expected': 15
+            },
+            {
+                'players': [1, 2, 3, 4, 5],
+                'weights': 2,
+                'expected': 30
+            },
+            {
+                'players': [1, 2, 3, 4, 5],
+                'weights': [1, 2, 3, 4, 5],
+                'expected': 55
+            },
+            {
+                'players': [5, 6, 7, 8, 9],
+                'weights': 1,
+                'expected': 5
+            }
+        ]
+
+        for case in cases:
+            result = sum_player_points(
+                case['players'], total_points, case['weights']
+            )
+            self.assertEqual(result, case['expected'])
 
 
     def test_suggest_squad_roles(self):
@@ -44,72 +91,141 @@ class TestOptimize(unittest.TestCase):
 
     def test_calculate_points(self):
 
-        gameweek = 1
-        roles = {
-            'captain': 2, 'vice_captain': 11, 
-            'starting_xi': [2, 5, 4, 3, 6, 11, 12, 9, 8, 13, 14], 
-            'reserve_out': [7, 10, 15], 'reserve_gkp': 1
-        }
-        score = calculate_points(
-            roles=roles,
-            total_points=self.gameweek_predictions.loc[:, gameweek],
-            captain_multiplier=2,
-            starting_xi_multiplier=1,
-            reserve_gkp_multiplier=0.1,
-            reserve_out_multiplier=np.array([0.3, 0.2, 0.1])
-        )
-        self.assertEqual(score, 90.5)
+        cases = [
+            {
+                'gameweek': 1,
+                'roles': {
+                    'captain': 2, 
+                    'vice_captain': 11, 
+                    'starting_xi': [2, 5, 4, 3, 6, 11, 12, 9, 8, 13, 14], 
+                    'reserve_out': [7, 10, 15], 
+                    'reserve_gkp': 1
+                },
+                'expected': 90.5
+            },
+            {
+                'gameweek': 4,
+                'roles': {
+                    'captain': 15, 
+                    'vice_captain': 4, 
+                    'starting_xi': [1, 4, 3, 6, 5, 7, 8, 12, 15, 14, 13], 
+                    'reserve_out': [9, 10, 11], 
+                    'reserve_gkp': 2
+                },
+                'expected': 74
+            }
+        ]
 
-        gameweek = 4
-        roles = {
-            'captain': 15, 'vice_captain': 4, 
-            'starting_xi': [1, 4, 3, 6, 5, 7, 8, 12, 15, 14, 13], 
-            'reserve_out': [9, 10, 11], 'reserve_gkp': 2
-        }
-        score = calculate_points(
-            roles=roles,
-            total_points=self.gameweek_predictions.loc[:, gameweek],
-            captain_multiplier=2,
-            starting_xi_multiplier=1,
-            reserve_gkp_multiplier=0.1,
-            reserve_out_multiplier=np.array([0.3, 0.2, 0.1])
-        )
-        self.assertEqual(score, 74)
+        for case in cases:
+            points = calculate_points(
+                case['roles'],
+                self.gameweek_predictions.loc[:, case['gameweek']],
+                get_parameter('captain_multiplier'),
+                get_parameter('starting_xi_multiplier'),
+                get_parameter('reserve_gkp_multiplier'),
+                get_parameter('reserve_out_multiplier')                
+            )
+            self.assertAlmostEqual(points, case['expected'], 5)
 
 
     def test_evaluate_squad(self):
-        
-        gameweeks = [1, 2, 3]
-        positions = self.positions.to_dict()
-        gameweek_predictions = {
-            gameweek: (
-                self.gameweek_predictions.loc[:, gameweek].to_dict()
-            )
-            for gameweek in gameweeks
-        }
-        free_transfers = 1
-        transfers_made = 1
 
-        score = evaluate_squad(
-            self.squad, self.budget, positions, 
-            gameweeks, gameweek_predictions,
-            free_transfers, transfers_made,
-            squad_evaluation_round_factor=0.5,
-            captain_multiplier=2,
-            starting_xi_multiplier=1,
-            reserve_gkp_multiplier=0.1,
-            reserve_out_multiplier=np.array([0.3, 0.2, 0.1]),
-            budget_importance=0,
-            transfer_aversion_factor=1.0
-        )
-        self.assertAlmostEqual(
-            score, 76.84285714285714, 5
-        )
+        cases = [
+            {
+                'gameweeks': [1, 2, 3],
+                'free_transfers': 1,
+                'transfers_made': 1,
+                'expected': 76.84285714285714
+            },
+            {
+                'gameweeks': [1, 2, 3],
+                'free_transfers': 1,
+                'transfers_made': 2,
+                'expected': 76.84285714285714 - 4
+            },
+            {
+                'gameweeks': [1, 2, 3],
+                'free_transfers': 1,
+                'transfers_made': 0,
+                'expected': 76.84285714285714
+            },
+        ]
+
+        for case in cases:
+        
+            # Optimize representations
+            positions = self.positions.to_dict()
+            gameweek_predictions = {
+                gameweek: (
+                    self.gameweek_predictions.loc[:, gameweek].to_dict()
+                )
+                for gameweek in case['gameweeks']
+            }   
+
+            score = evaluate_squad(
+                self.squad, self.budget, positions, 
+                case['gameweeks'], gameweek_predictions,
+                case['free_transfers'], case['transfers_made'],
+            )
+
+            self.assertAlmostEqual(score, case['expected'], 5)
+
+
+    def test_calculate_transfer_cost(self):
+
+        cases = [
+            {
+                'free_transfers': 1,
+                'transfers_made': 0,
+                'expected': 0
+            },
+            {
+                'free_transfers': 1,
+                'transfers_made': 1,
+                'expected': 0
+            },
+            {
+                'free_transfers': 1,
+                'transfers_made': 2,
+                'expected': 4
+            }
+        ]
+
+        for case in cases:
+            cost = calculate_transfer_cost(
+                case['free_transfers'], case['transfers_made']
+            )
+            self.assertEqual(cost, case['expected'])
+
+
+    def test_count_transfers_made(self):
+        
+        cases = [
+            {
+                'old_squad': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+                'new_squad': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+                'expected': 0
+            },
+            {
+                'old_squad': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+                'new_squad': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 30},
+                'expected': 1
+            },
+            {
+                'old_squad': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+                'new_squad': {17, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 30},
+                'expected': 2
+            },
+        ]
+
+        for case in cases:
+            result = count_transfers_made(case['old_squad'], case['new_squad'])
+            self.assertEqual(result, case['expected'])
 
 
     def test_get_valid_transfers(self):
 
-        test_cases = [
+        cases = [
             # team restrictions
             {"player_out": 1, "budget": 100, "expected": {1, 16, 17}},
             {"player_out": 9, "budget": 100, "expected": {9, 23, 24, 25, 26, 27}},
@@ -120,35 +236,45 @@ class TestOptimize(unittest.TestCase):
             {"player_out": 12, "budget": 0, "expected": {12}},
         ]
 
-        for test_case in test_cases:
-            result = get_valid_transfers(self.squad, test_case['player_out'], self.elements, self.selling_prices, test_case['budget'])
-            self.assertSetEqual(result, test_case['expected'])
+        for case in cases:
+            result = get_valid_transfers(self.squad, case['player_out'], self.elements, self.selling_prices, case['budget'])
+            self.assertSetEqual(result, case['expected'])
 
 
     def test_make_best_transfer(self):
 
-        test_cases = [
+        cases = [
             {
                 "gameweeks": [1], 
                 "budget": 0, 
                 "free_transfers": 1,
                 "transfers_made": 0,
-                "expected": {1, 2, 3, 4, 5, 6, 18, 8, 9, 10, 11, 12, 13, 14, 15}
+                "transfer_aversion_factor": 1.0,
+                "expected": {1, 2, 3, 4, 5, 6, 18, 8, 9, 10, 11, 12, 13, 14, 15},
+            },
+            {
+                "gameweeks": [1], 
+                "budget": 0, 
+                "free_transfers": 1,
+                "transfers_made": 1,
+                "transfer_aversion_factor": 99.0,
+                "expected": {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
             }
         ]
 
-        for test_case in test_cases:
+        for case in cases:
+            set_parameter('transfer_aversion_factor', case['transfer_aversion_factor'])
             squad = make_best_transfer(
-                self.squad, test_case['budget'], test_case['gameweeks'], self.elements, 
+                self.squad, case['budget'], case['gameweeks'], self.elements, 
                 self.selling_prices, self.now_costs, self.gameweek_predictions,
-                test_case['free_transfers'], test_case['transfers_made']
+                case['free_transfers'], case['transfers_made']
             )
-            self.assertSetEqual(squad, test_case['expected'])
+            self.assertSetEqual(squad, case['expected'])
 
 
     def test_calculate_budget(self):
         
-        test_cases = [
+        cases = [
             {
                 'initial_squad': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
                 'final_squad': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
@@ -177,22 +303,22 @@ class TestOptimize(unittest.TestCase):
             },
         ]
 
-        for test_case in test_cases:
+        for case in cases:
             self.assertEqual(
                 calculate_budget(
-                    test_case['initial_squad'],
-                    test_case['final_squad'],
-                    test_case['initial_budget'],
-                    test_case['selling_prices'],
-                    test_case['now_costs']
+                    case['initial_squad'],
+                    case['final_squad'],
+                    case['initial_budget'],
+                    case['selling_prices'],
+                    case['now_costs']
                 ),
-                test_case['expected']
+                case['expected']
             )
 
 
     def test_get_future_gameweeks(self):
 
-        test_cases = [
+        cases = [
             {
                 'next_gameweek': 1, 
                 'last_gameweek': 38, 
@@ -272,11 +398,11 @@ class TestOptimize(unittest.TestCase):
             },
         ]
 
-        for test_case in test_cases:
+        for case in cases:
             result = get_future_gameweeks(
-                next_gameweek=test_case['next_gameweek'], 
-                last_gameweek=test_case['last_gameweek'],
-                wildcard_gameweeks=test_case['wildcard_gameweeks'],
-                future_gameweeks_evaluated=test_case['future_gameweeks_evaluated']
+                next_gameweek=case['next_gameweek'], 
+                last_gameweek=case['last_gameweek'],
+                wildcard_gameweeks=case['wildcard_gameweeks'],
+                future_gameweeks_evaluated=case['future_gameweeks_evaluated']
             )
-            self.assertListEqual(result, test_case['expected'])
+            self.assertListEqual(result, case['expected'])
