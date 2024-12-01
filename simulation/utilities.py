@@ -13,7 +13,7 @@ def get_player_name(player_id: int, elements: pd.DataFrame):
     return f"{first_name} {second_name} ({web_name})"
 
 
-def make_automatic_substitutions(roles: set, minutes: pd.Series, positions: pd.Series) -> dict:
+def make_automatic_substitutions(roles: dict, minutes: pd.Series, positions: pd.Series) -> dict:
     """Returns squad roles after making automatic substitutions."""
 
     roles = deepcopy(roles)
@@ -30,10 +30,13 @@ def make_automatic_substitutions(roles: set, minutes: pd.Series, positions: pd.S
             continue
 
         # Replace the starting GKP if necessary.
-        elif positions.loc[player] == GKP and minutes[roles['reserve_gkp']] > 0: 
-            roles['starting_xi'][i], roles['reserve_gkp'] = (
-                roles['reserve_gkp'], roles['starting_xi'][i]
-            )
+        elif positions.loc[player] == GKP:
+            if minutes[roles['reserve_gkp']] > 0: 
+                roles['starting_xi'][i], roles['reserve_gkp'] = (
+                    roles['reserve_gkp'], roles['starting_xi'][i]
+                )
+            else:
+                pass
 
         # Replace outfield players if necessary (and legal). 
         else:
