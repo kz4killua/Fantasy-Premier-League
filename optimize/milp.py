@@ -320,7 +320,7 @@ def create_constraints(
             paid_transfers = variables['paid_transfers'][g]
             free_transfers = variables['free_transfers'][g]
             transfers_made = sum(variables['sales'][p, g] for p in players)
-            _create_max_constraint(solver, paid_transfers, transfers_made - free_transfers, 0, 15)
+            create_max_constraint(solver, paid_transfers, transfers_made - free_transfers, 0, 15)
 
     # Update the number of free transfers
     for i, g in enumerate(gameweeks):
@@ -350,10 +350,10 @@ def create_constraints(
 
             # Enforce the inner max constraint
             inner = solver.IntVar(1, 15, f'_{uuid.uuid4()}')
-            _create_max_constraint(solver, inner, 1, ft1 - tm1 + 1, 15)
+            create_max_constraint(solver, inner, 1, ft1 - tm1 + 1, 15)
 
             # The outer min constraint limits the number of free transfers
-            _create_min_constraint(solver, ft2, inner, 2, 15)
+            create_min_constraint(solver, ft2, inner, 2, 15)
 
 
 def create_objective(
@@ -429,7 +429,7 @@ def calculate_weighted_sum(
     return sum(s * w for s, w in zip(scores, weights))
 
 
-def _create_max_constraint(
+def create_max_constraint(
     solver: pywraplp.Solver,
     y: pywraplp.Variable | pywraplp.LinearExpr,
     a: pywraplp.Variable | pywraplp.LinearExpr,
@@ -466,7 +466,7 @@ def _create_max_constraint(
     solver.Add(y <= b + m * z)
 
 
-def _create_min_constraint(
+def create_min_constraint(
     solver: pywraplp.Solver,
     y: pywraplp.Variable | pywraplp.LinearExpr,
     a: pywraplp.Variable | pywraplp.LinearExpr,

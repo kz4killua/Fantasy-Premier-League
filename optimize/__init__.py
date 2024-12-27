@@ -5,7 +5,7 @@ import pandas as pd
 from optimize.greedy import run_greedy_optimization
 from optimize.utilities import suggest_squad_roles
 from optimize.utilities import get_future_gameweeks
-from optimize.cp import solve
+from optimize.milp import solve
 from optimize.parameters import get_parameter
 
 
@@ -22,13 +22,13 @@ def optimize_squad(
     selling_prices: pd.Series, 
 ):
 
-    return cp_optimization(
+    return milp_optimization(
         current_season, current_squad, current_budget, free_transfers,
         next_gameweek, wildcard_gameweeks, predictions, elements, now_costs, selling_prices
     )
 
 
-def cp_optimization(
+def milp_optimization(
     current_season: str, 
     current_squad: set, 
     current_budget: int, 
