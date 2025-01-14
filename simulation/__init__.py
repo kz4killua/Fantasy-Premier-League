@@ -234,8 +234,12 @@ def run_simulation(season: str, wildcard_gameweeks=[14, 25], log=False, use_cach
         current_budget = updated_budget
         purchase_prices = updated_purchase_prices
         selling_prices = updated_selling_prices
-        free_transfers = max(free_transfers - transfers_made + 1, 1)
-        free_transfers = min(free_transfers, MAX_FREE_TRANSFERS)
 
-
+        if next_gameweek in wildcard_gameweeks:
+            # Free transfers are rolled over after playing a wildcard
+            pass
+        else:
+            free_transfers = max(free_transfers - transfers_made + 1, 1)
+            free_transfers = min(free_transfers, MAX_FREE_TRANSFERS)
+            
     return overall_points
