@@ -4,10 +4,14 @@ import pandas as pd
 import numpy as np
 
 from optimize.parameters import get_parameter
-from datautil.utilities import GKP, DEF, MID, FWD
-
-
-TRANSFER_COST = 4
+from optimize.rules import (
+    GKP, DEF, MID, FWD,
+    NUM_SQUAD_GKPS, NUM_SQUAD_DEFS, NUM_SQUAD_MIDS, NUM_SQUAD_FWDS,
+    NUM_STARTING_XI_GKPS, 
+    MIN_STARTING_XI_DEFS, MIN_STARTING_XI_MIDS, MIN_STARTING_XI_FWDS,
+    TRANSFER_COST,
+    MAX_PLAYERS_PER_TEAM,
+)
 
 
 def sum_player_points(players: list, total_points: dict, weights: float | Iterable[float] = 1) -> float:
@@ -54,9 +58,11 @@ def suggest_squad_roles(squad: set, positions: dict, total_points: dict) -> dict
 
         # Count how many non required starters we have
         non_required = 0
-        non_required += max(len(starting_defs) - 3, 0)
-        non_required += max(len(starting_mids) - 0, 0)
-        non_required += max(len(starting_fwds) - 1, 0)
+        non_required += max(len(starting_defs) - MIN_STARTING_XI_DEFS, 0)
+        non_required += max(len(starting_mids) - MIN_STARTING_XI_MIDS, 0)
+        non_required += max(len(starting_fwds) - MIN_STARTING_XI_FWDS, 0)
+
+        max_non_required = 11 - (NUM_STARTING_XI_GKPS + MIN_STARTING_XI_DEFS + MIN_STARTING_XI_MIDS + MIN_STARTING_XI_FWDS)
 
         if positions[player] == GKP:
             if starting_gkp is None:
@@ -65,19 +71,19 @@ def suggest_squad_roles(squad: set, positions: dict, total_points: dict) -> dict
                 reserve_gkp = player
             
         elif positions[player] == DEF:
-            if len(starting_defs) < 3 or non_required < 6:
+            if len(starting_defs) < MIN_STARTING_XI_DEFS or non_required < max_non_required:
                 starting_defs.append(player)
             else:
                 reserve_out.append(player)
 
         elif positions[player] == MID:
-            if len(starting_mids) < 0 or non_required < 6:
+            if len(starting_mids) < MIN_STARTING_XI_MIDS or non_required < max_non_required:
                 starting_mids.append(player)
             else:
                 reserve_out.append(player)
         
         else:
-            if len(starting_fwds) < 1 or non_required < 6:
+            if len(starting_fwds) < MIN_STARTING_XI_FWDS or non_required < max_non_required:
                 starting_fwds.append(player)
             else:
                 reserve_out.append(player)

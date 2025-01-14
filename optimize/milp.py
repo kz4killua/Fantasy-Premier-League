@@ -3,11 +3,15 @@ import uuid
 import numpy as np
 from ortools.linear_solver import pywraplp
 
-
-GKP = 1
-DEF = 2
-MID = 3
-FWD = 4
+from optimize.rules import (
+    GKP, DEF, MID, FWD,
+    NUM_SQUAD_GKPS, NUM_SQUAD_DEFS, NUM_SQUAD_MIDS, NUM_SQUAD_FWDS,
+    NUM_STARTING_XI_GKPS, 
+    MIN_STARTING_XI_DEFS, MIN_STARTING_XI_FWDS,
+    TRANSFER_COST,
+    MAX_PLAYERS_PER_TEAM,
+    MAX_FREE_TRANSFERS,
+)
 
 
 def solve(
@@ -189,15 +193,15 @@ def create_constraints(
     for g in gameweeks:
         for t in set(teams.values()):
             solver.Add(
-                sum(variables['squad'][p, g] for p in players if teams[p] == t) <= 3
+                sum(variables['squad'][p, g] for p in players if teams[p] == t) <= MAX_PLAYERS_PER_TEAM
             )
 
     # There must be exactly 2 goalkeepers, 5 defenders, 5 midfielders, and 3 forwards (i.e. 15 players)
     for g in gameweeks:
-        solver.Add(sum(variables['squad'][p, g] for p in players if element_types[p] == GKP) == 2)
-        solver.Add(sum(variables['squad'][p, g] for p in players if element_types[p] == DEF) == 5)
-        solver.Add(sum(variables['squad'][p, g] for p in players if element_types[p] == MID) == 5)
-        solver.Add(sum(variables['squad'][p, g] for p in players if element_types[p] == FWD) == 3)
+        solver.Add(sum(variables['squad'][p, g] for p in players if element_types[p] == GKP) == NUM_SQUAD_GKPS)
+        solver.Add(sum(variables['squad'][p, g] for p in players if element_types[p] == DEF) == NUM_SQUAD_DEFS)
+        solver.Add(sum(variables['squad'][p, g] for p in players if element_types[p] == MID) == NUM_SQUAD_MIDS)
+        solver.Add(sum(variables['squad'][p, g] for p in players if element_types[p] == FWD) == NUM_SQUAD_FWDS)
 
     # There must be exactly 1 captain, 1 vice captain, etc.
     for g in gameweeks:
@@ -217,9 +221,9 @@ def create_constraints(
 
     # There must be exactly 1 starting GKP, at least 3 starting DEFs, and at least 1 starting FWD
     for g in gameweeks:
-        solver.Add(sum(variables['starting_xi'][p, g] for p in players if element_types[p] == GKP) == 1)
-        solver.Add(sum(variables['starting_xi'][p, g] for p in players if element_types[p] == DEF) >= 3)
-        solver.Add(sum(variables['starting_xi'][p, g] for p in players if element_types[p] == FWD) >= 1)
+        solver.Add(sum(variables['starting_xi'][p, g] for p in players if element_types[p] == GKP) == NUM_STARTING_XI_GKPS)
+        solver.Add(sum(variables['starting_xi'][p, g] for p in players if element_types[p] == DEF) >= MIN_STARTING_XI_DEFS)
+        solver.Add(sum(variables['starting_xi'][p, g] for p in players if element_types[p] == FWD) >= MIN_STARTING_XI_FWDS)
 
     # The starting XI and reserve players must be a subset of the squad
     for g in gameweeks:
@@ -353,7 +357,7 @@ def create_constraints(
             create_max_constraint(solver, inner, 1, ft1 - tm1 + 1, 15)
 
             # The outer min constraint limits the number of free transfers
-            create_min_constraint(solver, ft2, inner, 2, 15)
+            create_min_constraint(solver, ft2, inner, MAX_FREE_TRANSFERS, 15)
 
 
 def create_objective(
@@ -408,7 +412,7 @@ def create_objective(
         )
 
         # Add transfer costs
-        score -= variables['paid_transfers'][g] * 4
+        score -= variables['paid_transfers'][g] * TRANSFER_COST
 
         scores.append(score)
 

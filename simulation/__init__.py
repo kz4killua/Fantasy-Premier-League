@@ -5,6 +5,7 @@ from optimize.utilities import calculate_points, calculate_budget, sum_player_po
 from predictions import make_predictions, group_predictions_by_gameweek, weight_gameweek_predictions_by_availability
 from simulation.utilities import make_automatic_substitutions, get_selling_prices, get_player_name
 from simulation.loaders import load_simulation_purchase_prices, load_simulation_bootstrap_elements, load_simulation_features, load_simulation_true_results
+from optimize.rules import MAX_FREE_TRANSFERS
 
 
 def format_currency(amount: int):
@@ -234,7 +235,7 @@ def run_simulation(season: str, wildcard_gameweeks=[14, 25], log=False, use_cach
         purchase_prices = updated_purchase_prices
         selling_prices = updated_selling_prices
         free_transfers = max(free_transfers - transfers_made + 1, 1)
-        free_transfers = min(free_transfers, 2)
+        free_transfers = min(free_transfers, MAX_FREE_TRANSFERS)
 
 
     return overall_points

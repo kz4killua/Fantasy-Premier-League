@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from copy import deepcopy
 
-from datautil.utilities import GKP, DEF, MID, FWD
+from optimize.rules import GKP, DEF, MID, FWD
 
 
 def get_player_name(player_id: int, elements: pd.DataFrame):

@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from sklearn.base import BaseEstimator
 
-from datautil.utilities import GKP, DEF, MID, FWD
+from optimize.rules import GKP, DEF, MID, FWD
 
 
 class PositionSplitEstimator(BaseEstimator):
