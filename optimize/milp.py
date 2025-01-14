@@ -1,4 +1,5 @@
 import uuid
+import warnings
 
 import numpy as np
 from ortools.linear_solver import pywraplp
@@ -115,17 +116,21 @@ def get_solution(
         free_transfers = [v.solution_value() for g, v in variables['free_transfers'].items() if g == gameweek][0]
         paid_transfers = [v.solution_value() for g, v in variables['paid_transfers'].items() if g == gameweek][0]
 
-        # Sanity checks: Ensure each selection is valid
-        assert len(squad) == 15
-        assert len(starting_xi) == 11
-        assert len(captain) == 1
-        assert len(vice_captain) == 1
-        assert len(reserve_gkp) == 1
-        assert len(reserve_1) == 1
-        assert len(reserve_2) == 1
-        assert len(reserve_3) == 1
-        assert set(squad) == set(starting_xi + reserve_gkp + reserve_1 + reserve_2 + reserve_3)
-        assert len(purchases) == len(sales)
+        check_solution(
+            squad,
+            starting_xi,
+            captain,
+            vice_captain,
+            reserve_gkp,
+            reserve_1,
+            reserve_2,
+            reserve_3,
+            purchases,
+            sales,
+            budget,
+            free_transfers,
+            paid_transfers,
+        )
 
         solutions[gameweek] = {
             'squad': set(squad),
@@ -306,7 +311,7 @@ def create_constraints(
 
     # Wildcards are not available in gameweek 1
     if 1 in wildcards:
-        raise ValueError("Wildcards are not available in gameweek 1.")
+        warnings.warn("Wildcards are not available in gameweek 1.")
 
     # Activate wildcards in selected gameweeks
     for g in gameweeks:
@@ -421,6 +426,35 @@ def create_objective(
     objective = calculate_weighted_sum(scores, squad_evaluation_round_factor)
 
     solver.Maximize(objective)
+
+
+def check_solution(
+    squad: list[int],
+    starting_xi: list[int],
+    captain: list[int],
+    vice_captain: list[int],
+    reserve_gkp: list[int],
+    reserve_1: list[int],
+    reserve_2: list[int],
+    reserve_3: list[int],
+    purchases: list[int],
+    sales: list[int],
+    budget: int,
+    free_transfers: int,
+    paid_transfers: int,
+):
+    assert len(squad) == 15
+    assert len(starting_xi) == 11
+    assert len(captain) == 1
+    assert len(vice_captain) == 1
+    assert len(reserve_gkp) == 1
+    assert len(reserve_1) == 1
+    assert len(reserve_2) == 1
+    assert len(reserve_3) == 1
+    assert set(squad) == {*starting_xi, *reserve_gkp, *reserve_1, *reserve_2, *reserve_3}
+    assert len(purchases) == len(sales)
+    assert free_transfers <= MAX_FREE_TRANSFERS
+    assert paid_transfers <= 15
 
 
 # TODO: Share this function with optimize/utilities.py
